@@ -1,3 +1,4 @@
+use crate::difficulty;
 use std::collections::HashMap;
 use std::fs;
 use std::env;
@@ -12,6 +13,7 @@ use crate::{
     reward::block_reward,
     revelation::revelation_tx,
     merkle::merkle_root,
+    crypto::sha256,
 };
 
 pub struct Blockchain {
@@ -59,7 +61,6 @@ impl Blockchain {
             let data = fs::read_to_string(blocks_file()).unwrap();
             if !data.trim().is_empty() {
                 self.blocks = serde_json::from_str(&data).unwrap();
-                println!("Loaded chain at height {}", self.blocks.len());
             }
         }
 
@@ -102,7 +103,7 @@ impl Blockchain {
             inputs: vec![],
             outputs: vec![TxOutput {
                 value: reward,
-                pubkey: miner_key.to_string(),
+                pubkey_hash: sha256(miner_key.as_bytes()),
             }],
         };
 
@@ -112,7 +113,7 @@ impl Blockchain {
         let mut block = Block {
             header: BlockHeader {
                 height,
-                timestamp: OffsetDateTime::now_utc().unix_timestamp(),
+                timestamp: 0,
                 prev_hash: prev.hash.clone(),
                 nonce: 0,
                 difficulty: self.difficulty,
@@ -123,14 +124,27 @@ impl Blockchain {
         };
 
         mine(&mut block);
+        block.header.timestamp = OffsetDateTime::now_utc().unix_timestamp();
+
+        let actual_time = block.header.timestamp - prev.header.timestamp;
+        let target_time = 10;
+
+        self.difficulty =
+            difficulty::retarget(self.difficulty, actual_time, target_time);
+
         self.blocks.push(block);
         self.rebuild_utxos();
         self.save_all();
     }
 
+    // ✅ REQUIRED BY P2P
     pub fn validate_and_add_block(&mut self, block: Block) -> bool {
         let expected_height = self.blocks.len() as u64;
-        let prev = self.blocks.last().unwrap();
+
+        let prev = match self.blocks.last() {
+            Some(b) => b,
+            None => return false,
+        };
 
         if block.header.height != expected_height {
             return false;
@@ -148,6 +162,7 @@ impl Blockchain {
             return false;
         }
 
+        // v0.2 — ownership & signatures intentionally NOT enforced yet
         self.blocks.push(block);
         self.rebuild_utxos();
         self.save_all();
@@ -162,7 +177,11 @@ impl Blockchain {
                 let txid = hex::encode(tx.txid());
 
                 for input in &tx.inputs {
-                    let key = format!("{}:{}", hex::encode(&input.txid), input.index);
+                    let key = format!(
+                        "{}:{}",
+                        hex::encode(&input.txid),
+                        input.index
+                    );
                     self.utxos.remove(&key);
                 }
 
@@ -172,7 +191,7 @@ impl Blockchain {
                         key,
                         UTXO {
                             value: output.value,
-                            pubkey: output.pubkey.clone(),
+                            pubkey_hash: output.pubkey_hash.clone(),
                         },
                     );
                 }
@@ -182,7 +201,15 @@ impl Blockchain {
 
     pub fn save_all(&self) {
         fs::create_dir_all(data_dir()).unwrap();
-        fs::write(blocks_file(), serde_json::to_string_pretty(&self.blocks).unwrap()).unwrap();
-        fs::write(utxos_file(), serde_json::to_string_pretty(&self.utxos).unwrap()).unwrap();
+        fs::write(
+            blocks_file(),
+            serde_json::to_string_pretty(&self.blocks).unwrap(),
+        )
+        .unwrap();
+        fs::write(
+            utxos_file(),
+            serde_json::to_string_pretty(&self.utxos).unwrap(),
+        )
+        .unwrap();
     }
 }
