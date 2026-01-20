@@ -23,4 +23,25 @@ impl Block {
     pub fn hash_header(&self) -> Vec<u8> {
         sha256(&sha256(&bincode::serialize(&self.header).unwrap()))
     }
+
+    pub fn verify_pow(&self) -> bool {
+        let hash = self.hash_header();
+        let mut remaining = self.header.difficulty;
+
+        for byte in hash {
+            let zeros = byte.leading_zeros();
+
+            if zeros >= remaining {
+                return true;
+            }
+
+            if zeros < 8 {
+                return false;
+            }
+
+            remaining -= zeros;
+        }
+
+        false
+    }
 }
