@@ -7,6 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH, Duration};
 use serde::{Deserialize, Serialize};
 use crate::block::Block;
 use crate::transaction::Transaction;
+use crate::chain::Blockchain;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum P2PMessage {
@@ -76,25 +77,6 @@ impl P2PNetwork {
         }
         
         network
-    }
-
-    fn validate_block(block: &Block) -> bool {
-        if block.header.height < 0 {
-            println!("❌ Invalid block: negative height");
-            return false;
-        }
-
-        if block.transactions.is_empty() {
-            println!("❌ Invalid block: no transactions");
-            return false;
-        }
-
-        if block.header.difficulty == 0 {
-            println!("❌ Invalid block: invalid difficulty");
-            return false;
-        }
-
-        true
     }
 
     pub fn connect_to_peer(&self, address: SocketAddr) {
@@ -217,7 +199,7 @@ impl P2PNetwork {
     }
 
     pub fn broadcast_block(&self, block: &Block) {
-        if !Self::validate_block(block) {
+        if !Blockchain::validate_block(block) {
             println!("❌ Block validation failed, not broadcasting");
             return;
         }

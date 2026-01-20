@@ -167,4 +167,23 @@ impl Blockchain {
         let utxos_json = serde_json::to_string_pretty(&self.utxos).unwrap();
         fs::write(utxos_file(), utxos_json).unwrap();
     }
+
+    pub fn validate_block(block: &Block) -> bool {
+        if block.header.height < 0 {
+            println!("❌ Invalid block: negative height");
+            return false;
+        }
+
+        if block.transactions.is_empty() {
+            println!("❌ Invalid block: no transactions");
+            return false;
+        }
+
+        if block.header.difficulty == 0 {
+            println!("❌ Invalid block: invalid difficulty");
+            return false;
+        }
+
+        true
+    }
 }
