@@ -17,7 +17,8 @@ use crate::{
 };
 
 pub struct Blockchain {
-    pub blocks: Vec<Block>,
+    pub blocks: Vec<Block>,                  // best chain only
+    pub all_blocks: HashMap<Vec<u8>, Block>, // all known blocks
     pub utxos: UTXOSet,
     pub difficulty: u32,
 }
@@ -45,6 +46,7 @@ impl Blockchain {
     pub fn new() -> Self {
         Self {
             blocks: vec![],
+            all_blocks: HashMap::new(),
             utxos: HashMap::new(),
             difficulty: 2,
         }
@@ -61,6 +63,9 @@ impl Blockchain {
             let data = fs::read_to_string(blocks_file()).unwrap();
             if !data.trim().is_empty() {
                 self.blocks = serde_json::from_str(&data).unwrap();
+                for b in &self.blocks {
+                    self.all_blocks.insert(b.hash.clone(), b.clone());
+                }
             }
         }
 
@@ -68,16 +73,15 @@ impl Blockchain {
             let data = fs::read_to_string(utxos_file()).unwrap();
             if !data.trim().is_empty() {
                 self.utxos = serde_json::from_str(&data).unwrap();
-                return;
             }
         }
 
         if self.blocks.is_empty() {
             let txs = vec![revelation_tx()];
 
-            let mut genesis = Block {
+            let mut revelation = Block {
                 header: BlockHeader {
-                    height: 0,
+                    height: 0, // informational only
                     timestamp: 1730000000,
                     prev_hash: vec![0u8; 32],
                     nonce: 0,
@@ -88,14 +92,15 @@ impl Blockchain {
                 hash: vec![],
             };
 
-            mine(&mut genesis);
-            self.blocks.push(genesis);
+            mine(&mut revelation);
+            self.blocks.push(revelation.clone());
+            self.all_blocks.insert(revelation.hash.clone(), revelation);
             self.rebuild_utxos();
             self.save_all();
         }
     }
 
-    // ⛏️ MINING — UNCHANGED
+    // ⛏️ MINING (UNCHANGED BEHAVIOR)
     pub fn mine_block(&mut self, miner_key: &str) {
         let height = self.blocks.len() as u64;
         let reward = block_reward(height);
@@ -133,14 +138,11 @@ impl Blockchain {
         self.difficulty =
             difficulty::retarget(self.difficulty, actual_time, target_time);
 
-        self.blocks.push(block);
-        self.rebuild_utxos();
-        self.save_all();
+        self.validate_and_add_block(block);
     }
 
-    // 🔐 OWNERSHIP ENFORCEMENT (NEW)
+    // 🔐 TRANSACTION VALIDATION
     pub fn validate_transaction(&self, tx: &Transaction) -> bool {
-        // Coinbase is always valid
         if tx.inputs.is_empty() {
             return true;
         }
@@ -159,12 +161,10 @@ impl Blockchain {
                 None => return false,
             };
 
-            // RULE 1: ownership hash matches
             if sha256(&input.pubkey) != utxo.pubkey_hash {
                 return false;
             }
 
-            // RULE 2: signature valid
             if !verify_signature(
                 &input.pubkey,
                 &sighash,
@@ -177,22 +177,8 @@ impl Blockchain {
         true
     }
 
-    // 🔗 BLOCK ACCEPTANCE (NOW ENFORCES OWNERSHIP)
+    // 🔀 FORK-CHOICE BLOCK ACCEPTANCE
     pub fn validate_and_add_block(&mut self, block: Block) -> bool {
-        let expected_height = self.blocks.len() as u64;
-        let prev = match self.blocks.last() {
-            Some(b) => b,
-            None => return false,
-        };
-
-        if block.header.height != expected_height {
-            return false;
-        }
-
-        if block.header.prev_hash != prev.hash {
-            return false;
-        }
-
         if !block.verify_pow() {
             return false;
         }
@@ -207,10 +193,57 @@ impl Blockchain {
             }
         }
 
-        self.blocks.push(block);
-        self.rebuild_utxos();
-        self.save_all();
+        if block.header.prev_hash != vec![0u8; 32]
+            && !self.all_blocks.contains_key(&block.header.prev_hash)
+        {
+            return false;
+        }
+
+        let hash = block.hash.clone();
+        self.all_blocks.insert(hash.clone(), block.clone());
+
+        let candidate = match self.build_chain_from_tip(hash) {
+            Some(c) => c,
+            None => return false,
+        };
+
+        let new_work = Blockchain::total_work(&candidate);
+        let current_work = Blockchain::total_work(&self.blocks);
+
+        if new_work > current_work {
+            println!(
+                "🔄 Reorg: switching chain (work {} → {})",
+                current_work, new_work
+            );
+            self.blocks = candidate;
+            self.rebuild_utxos();
+            self.save_all();
+        }
+
         true
+    }
+
+    fn total_work(chain: &[Block]) -> u128 {
+        chain.iter().map(|b| b.header.difficulty as u128).sum()
+    }
+
+    fn build_chain_from_tip(&self, tip_hash: Vec<u8>) -> Option<Vec<Block>> {
+        let mut chain = Vec::new();
+        let mut current = tip_hash;
+
+        loop {
+            let block = self.all_blocks.get(&current)?.clone();
+            let prev = block.header.prev_hash.clone();
+            chain.push(block);
+
+            if prev == vec![0u8; 32] {
+                break;
+            }
+            current = prev;
+        }
+
+        chain.reverse();
+        Some(chain)
     }
 
     pub fn rebuild_utxos(&mut self) {
