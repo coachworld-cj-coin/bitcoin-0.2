@@ -16,9 +16,11 @@ use crate::{
     crypto::{sha256, verify_signature},
 };
 
+pub const COINBASE_MATURITY: u64 = 100;
+
 pub struct Blockchain {
-    pub blocks: Vec<Block>,                  // best chain only
-    pub all_blocks: HashMap<Vec<u8>, Block>, // all known blocks
+    pub blocks: Vec<Block>,
+    pub all_blocks: HashMap<Vec<u8>, Block>,
     pub utxos: UTXOSet,
     pub difficulty: u32,
 }
@@ -79,9 +81,9 @@ impl Blockchain {
         if self.blocks.is_empty() {
             let txs = vec![revelation_tx()];
 
-            let mut revelation = Block {
+            let mut genesis = Block {
                 header: BlockHeader {
-                    height: 0, // informational only
+                    height: 0,
                     timestamp: 1730000000,
                     prev_hash: vec![0u8; 32],
                     nonce: 0,
@@ -92,17 +94,16 @@ impl Blockchain {
                 hash: vec![],
             };
 
-            mine(&mut revelation);
-            self.blocks.push(revelation.clone());
-            self.all_blocks.insert(revelation.hash.clone(), revelation);
+            mine(&mut genesis);
+            self.blocks.push(genesis.clone());
+            self.all_blocks.insert(genesis.hash.clone(), genesis);
             self.rebuild_utxos();
             self.save_all();
         }
     }
 
-    // ⛏️ MINING (UNCHANGED BEHAVIOR)
     pub fn mine_block(&mut self, miner_key: &str) {
-        let height = self.blocks.len() as u64;
+        let height = self.height();
         let reward = block_reward(height);
 
         let coinbase = Transaction {
@@ -133,43 +134,38 @@ impl Blockchain {
         block.header.timestamp = OffsetDateTime::now_utc().unix_timestamp();
 
         let actual_time = block.header.timestamp - prev.header.timestamp;
-        let target_time = 10;
-
         self.difficulty =
-            difficulty::retarget(self.difficulty, actual_time, target_time);
+            difficulty::retarget(self.difficulty, actual_time, 10);
 
         self.validate_and_add_block(block);
     }
 
-    // 🔐 TRANSACTION VALIDATION
     pub fn validate_transaction(&self, tx: &Transaction) -> bool {
         if tx.inputs.is_empty() {
             return true;
         }
 
+        let current_height = self.height();
         let sighash = tx.sighash();
 
         for input in &tx.inputs {
-            let key = format!(
-                "{}:{}",
-                hex::encode(&input.txid),
-                input.index
-            );
-
+            let key = format!("{}:{}", hex::encode(&input.txid), input.index);
             let utxo = match self.utxos.get(&key) {
                 Some(u) => u,
                 None => return false,
             };
 
+            if let Some(origin_height) = utxo.height {
+                if current_height < origin_height + COINBASE_MATURITY {
+                    return false;
+                }
+            }
+
             if sha256(&input.pubkey) != utxo.pubkey_hash {
                 return false;
             }
 
-            if !verify_signature(
-                &input.pubkey,
-                &sighash,
-                &input.signature,
-            ) {
+            if !verify_signature(&input.pubkey, &sighash, &input.signature) {
                 return false;
             }
         }
@@ -177,7 +173,6 @@ impl Blockchain {
         true
     }
 
-    // 🔀 FORK-CHOICE BLOCK ACCEPTANCE
     pub fn validate_and_add_block(&mut self, block: Block) -> bool {
         if !block.verify_pow() {
             return false;
@@ -193,12 +188,6 @@ impl Blockchain {
             }
         }
 
-        if block.header.prev_hash != vec![0u8; 32]
-            && !self.all_blocks.contains_key(&block.header.prev_hash)
-        {
-            return false;
-        }
-
         let hash = block.hash.clone();
         self.all_blocks.insert(hash.clone(), block.clone());
 
@@ -207,14 +196,7 @@ impl Blockchain {
             None => return false,
         };
 
-        let new_work = Blockchain::total_work(&candidate);
-        let current_work = Blockchain::total_work(&self.blocks);
-
-        if new_work > current_work {
-            println!(
-                "🔄 Reorg: switching chain (work {} → {})",
-                current_work, new_work
-            );
+        if Self::total_work(&candidate) > Self::total_work(&self.blocks) {
             self.blocks = candidate;
             self.rebuild_utxos();
             self.save_all();
@@ -227,18 +209,15 @@ impl Blockchain {
         chain.iter().map(|b| b.header.difficulty as u128).sum()
     }
 
-    fn build_chain_from_tip(&self, tip_hash: Vec<u8>) -> Option<Vec<Block>> {
+    fn build_chain_from_tip(&self, tip: Vec<u8>) -> Option<Vec<Block>> {
         let mut chain = Vec::new();
-        let mut current = tip_hash;
+        let mut current = tip;
 
         loop {
             let block = self.all_blocks.get(&current)?.clone();
             let prev = block.header.prev_hash.clone();
             chain.push(block);
-
-            if prev == vec![0u8; 32] {
-                break;
-            }
+            if prev == vec![0u8; 32] { break; }
             current = prev;
         }
 
@@ -254,11 +233,7 @@ impl Blockchain {
                 let txid = hex::encode(tx.txid());
 
                 for input in &tx.inputs {
-                    let key = format!(
-                        "{}:{}",
-                        hex::encode(&input.txid),
-                        input.index
-                    );
+                    let key = format!("{}:{}", hex::encode(&input.txid), input.index);
                     self.utxos.remove(&key);
                 }
 
@@ -269,6 +244,11 @@ impl Blockchain {
                         UTXO {
                             value: output.value,
                             pubkey_hash: output.pubkey_hash.clone(),
+                            height: if block.header.height == 0 {
+                                None // genesis stays immature forever
+                            } else {
+                                Some(block.header.height)
+                            },
                         },
                     );
                 }
@@ -278,15 +258,7 @@ impl Blockchain {
 
     pub fn save_all(&self) {
         fs::create_dir_all(data_dir()).unwrap();
-        fs::write(
-            blocks_file(),
-            serde_json::to_string_pretty(&self.blocks).unwrap(),
-        )
-        .unwrap();
-        fs::write(
-            utxos_file(),
-            serde_json::to_string_pretty(&self.utxos).unwrap(),
-        )
-        .unwrap();
+        fs::write(blocks_file(), serde_json::to_string_pretty(&self.blocks).unwrap()).unwrap();
+        fs::write(utxos_file(), serde_json::to_string_pretty(&self.utxos).unwrap()).unwrap();
     }
 }

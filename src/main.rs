@@ -3,11 +3,9 @@ use bitcoin_v0_2_revelation::network::P2PNetwork;
 use bitcoin_v0_2_revelation::api::start_api;
 
 use std::sync::{Arc, Mutex};
-use std::thread;
-use std::thread::sleep;
 use std::time::{Duration, Instant};
 
-use tokio::runtime::Runtime;
+use tokio::time::sleep;
 
 enum NodeMode {
     Syncing,
@@ -27,7 +25,8 @@ fn print_chain(chain: &Blockchain) {
     }
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     println!("⛓ Bitcoin v0.2 — Revelation Edition");
 
     let mut local_chain = Blockchain::new();
@@ -37,9 +36,8 @@ fn main() {
 
     // ---- HTTP API ----
     let api_chain = Arc::clone(&chain);
-    thread::spawn(move || {
-        let rt = Runtime::new().expect("Failed to create Tokio runtime");
-        rt.block_on(start_api(api_chain, 8080));
+    tokio::spawn(async move {
+        start_api(api_chain, 8080).await;
     });
     // ------------------
 
@@ -74,7 +72,7 @@ fn main() {
                     mode = NodeMode::Normal;
                 }
 
-                sleep(Duration::from_millis(300));
+                sleep(Duration::from_millis(300)).await;
             }
 
             NodeMode::Normal => {
@@ -110,7 +108,7 @@ fn main() {
                     print_chain(&chain);
                 }
 
-                sleep(Duration::from_millis(100));
+                sleep(Duration::from_millis(100)).await;
             }
         }
     }
