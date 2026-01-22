@@ -1,60 +1,64 @@
-# Chain Synchronization
+
+
+## Chain Synchronization
 
 This document describes how nodes discover peers and synchronize the blockchain.
 
-Synchronization is automatic and requires no central coordinator.
+Synchronization is decentralized and automatic.
+
+No central coordinator is required.
 
 ---
 
 ## General Behavior
 
-Each node maintains its own copy of the blockchain.
+Each node maintains an independent copy of the blockchain.
 
-When a node starts, it will:
+On startup, a node will:
 
-1. Load its local blockchain from disk
-2. Listen for incoming peer connections
-3. Connect to known peers if configured
-4. Request blocks it does not yet have
-5. Validate received blocks
-6. Extend its chain if the blocks are valid
+1. Load its local chain state from disk
+2. Accept incoming peer connections
+3. Connect to known peers, if configured
+4. Request blocks beyond its current state
+5. Validate all received data
+6. Extend its chain only with valid blocks
 
-Nodes remain synchronized by continuously exchanging new blocks.
+Nodes remain synchronized by continuously exchanging newly observed blocks.
 
 ---
 
 ## Initial Synchronization
 
-On startup, a node sends a synchronization request to all connected peers.
+When a node starts, it announces its current block height to connected peers.
 
-The request includes the node’s current block height.
+Peers respond by transmitting blocks with a greater height.
 
-Peers respond by sending all blocks with a height greater than the requester’s height.
+Blocks are sent in ascending order and validated sequentially.
 
-Blocks are sent sequentially in ascending order.
+Only valid blocks are retained.
 
 ---
 
 ## Block Validation
 
-Each received block is validated before being accepted.
+Every received block is independently verified before acceptance.
 
-Validation includes:
+Validation includes, but is not limited to:
 
 * correct reference to the previous block hash
 * valid proof-of-work
-* non-empty transaction list
-* valid difficulty value
+* a non-empty transaction set
+* a valid difficulty value
 
-Invalid blocks are discarded and not relayed.
+Blocks that fail validation are rejected and not relayed.
 
 ---
 
 ## Chain Selection
 
-If multiple valid chains are observed, the node selects the chain with the most accumulated proof-of-work.
+When multiple valid chains are observed, the node selects the chain with the greatest accumulated proof-of-work.
 
-Shorter or invalid chains are ignored.
+Chains with less work, or containing invalid blocks, are ignored.
 
 ---
 
@@ -63,8 +67,10 @@ Shorter or invalid chains are ignored.
 After initial synchronization:
 
 * newly mined blocks are broadcast to peers
-* received blocks are immediately validated and relayed
-* all peers converge on the same chain over time
+* received blocks are validated immediately
+* valid blocks are relayed to other peers
+
+Over time, nodes converge on a single shared chain.
 
 Synchronization continues for the lifetime of the node.
 
@@ -72,7 +78,7 @@ Synchronization continues for the lifetime of the node.
 
 ## Peer Connections
 
-Nodes communicate directly using TCP.
+Nodes communicate directly over TCP.
 
 Default peer-to-peer port:
 
@@ -80,13 +86,13 @@ Default peer-to-peer port:
 8333
 ```
 
-The peer-to-peer port does not use HTTP.
+The peer-to-peer protocol does not use HTTP.
 
 ---
 
 ## Multiple Nodes (Local Testing)
 
-Multiple nodes may be run on the same machine using different ports.
+Multiple nodes may operate on the same machine using distinct ports.
 
 Example:
 
@@ -96,30 +102,40 @@ Node B: 0.0.0.0:8334
 Node C: 0.0.0.0:8335
 ```
 
-Nodes may be manually connected or connected using predefined seed addresses.
+Nodes may be connected manually or via predefined peer addresses.
 
 ---
 
 ## Persistence
 
-Synchronized blocks are written to disk.
+Accepted blocks are written to persistent storage.
 
-A node that is shut down and restarted will resume synchronization from its last known height.
+A node that restarts resumes synchronization from its last known state.
 
 ---
 
 ## Failure Handling
 
-Temporary disconnections do not affect consensus.
+Temporary network failures do not affect consensus.
 
-A node that falls behind will automatically resynchronize when connectivity is restored.
+A node that falls behind will automatically resynchronize once connectivity is restored.
 
 ---
 
 ## Summary
 
-Synchronization is decentralized, continuous, and automatic.
-
-No trusted servers or coordinators are required.
+Chain synchronization is decentralized, continuous, and self-healing.
 
 Each node independently verifies all data it receives.
+
+Consensus emerges from shared rules, not coordination.
+
+---
+
+### Why this matches the “Satoshi tone”
+
+* Short, declarative sentences
+* No claims of “security guarantees”
+* Emphasis on **rules + verification**, not behavior
+* Avoids implementation trivia unless necessary
+* Reads like protocol documentation, not a tutorial
