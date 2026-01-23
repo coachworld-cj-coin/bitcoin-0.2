@@ -1,7 +1,6 @@
+# Bitcoin v0.3.0 — Revelation Edition
 
-# Bitcoin v0.2 — Revelation Edition
-
-Bitcoin v0.2 — Revelation Edition is an experimental peer-to-peer electronic cash system written in Rust.
+Bitcoin v0.3.0 — Revelation Edition is an experimental peer-to-peer electronic cash system written in Rust.
 
 It is a standalone proof-of-work network intended to demonstrate the essential mechanics of decentralized consensus, block validation, and chain synchronization without reliance on any central authority.
 
@@ -12,9 +11,16 @@ It is deliberately minimal.
 
 ## Design Intent
 
-The objective of this project is not feature completeness, but correctness of the base protocol.
+The objective of this project is **not feature completeness**, but **correctness of the base protocol**.
 
-The system is designed so that every node independently verifies all rules required for consensus. No trusted services, checkpoints, or privileged roles exist.
+The system is designed so that **every node independently verifies all consensus rules** required for operation.
+No trusted services, checkpoints, coordinators, or privileged roles exist.
+
+The design favors:
+
+* explicit rules over heuristics
+* determinism over convenience
+* stability over rapid iteration
 
 The system provides:
 
@@ -23,7 +29,7 @@ The system provides:
 * automatic fork resolution
 * deterministic reconstruction of state from genesis
 
-Any node may leave or rejoin the network at any time.
+Any node may leave or rejoin the network at any time without coordination.
 
 ---
 
@@ -41,28 +47,28 @@ A node may:
 
 Temporary divergence between nodes is expected and resolves naturally through accumulated proof-of-work.
 
-There is no global coordinator.
+There is **no global coordinator**.
 
 ---
 
-## Consensus Rules
+## Consensus Rules (Overview)
 
-Consensus follows a Bitcoin-style longest-chain-by-work rule:
+Consensus follows a Bitcoin-style **most-work chain selection rule**:
 
 * blocks must reference a known parent
-* blocks must satisfy the current proof-of-work difficulty
+* blocks must satisfy the current proof-of-work target
 * multiple competing chains are permitted
 * the chain with the most accumulated work is selected
 * nodes reorganize automatically when a stronger chain appears
 
-Block height is derived from ancestry.
+Block height is derived solely from ancestry.
 There is no external clock and no checkpoint authority.
 
 ---
 
-## Revelation Block
+## Revelation Block (Genesis)
 
-The initial block (height 0) is referred to as the *Revelation Block*.
+The initial block (height 0) is referred to as the **Revelation Block**.
 
 * it has no parent (`prev_hash = 0x00…00`)
 * it contains a single deterministic transaction
@@ -81,49 +87,87 @@ The monetary rules are fixed and enforced by consensus:
 
 * block subsidy is height-based
 * the halving schedule is deterministic
-* total supply is capped at 21 million units
+* total supply is capped at **21 million units**
 * coinbase outputs require maturity before spending
 
 No node may create coins outside these rules.
 
+After the subsidy is exhausted, miners are compensated exclusively via transaction fees.
+The chain is designed to continue indefinitely.
+
 ---
 
-## Protocol Update — v0.2.1 (Consensus v2)
+## L1 Consensus v3 — Declaration of Stability
 
-This release introduces **Consensus v2**, a height-activated protocol hardening.
+**As of version v0.3.0, L1 Consensus v3 is declared FROZEN.**
 
-### Summary
+The rules governing Layer-1 consensus are considered **stable, production-safe, and final**, except in the event of a critical security vulnerability.
 
-* Coinbase maturity is now enforced explicitly at the consensus level.
-* The rule is activated by block height and does not invalidate historical blocks.
-* Older nodes can still fully synchronize the blockchain.
-* Nodes must upgrade to continue mining after activation.
+This freeze applies to all rules involved in:
 
-### Activation
+* block structure and header fields
+* proof-of-work validation
+* target / difficulty calculation
+* timestamp rules (Median Time Past and future drift limits)
+* fork choice and reorganization logic
+* block size limits
+* coinbase and subsidy enforcement
+* transaction validity and inflation prevention
+* UTXO ownership verification
 
-* **Consensus v2 activation height:** `1000`
+Consensus rules are intentionally conservative.
+All experimentation, optimization, and fairness mechanisms are expected to occur **outside of L1 consensus** (e.g. Layer-2 systems).
 
-Blocks below this height remain valid under legacy rules.
-Blocks at or above this height must obey the new consensus rule.
+Any modification to L1 consensus rules requires:
 
-### Compatibility
+* a new consensus version identifier
+* explicit height-gated activation
+* full documentation of old and new rules
+* extensive adversarial testing
 
-* Historical chain data remains valid.
-* Full synchronization remains possible for old and new nodes.
-* Mining participation after activation requires upgrading to v0.2.1.
+---
 
-### Release Tag
+## Historical Protocol Updates
 
-```
-v0.2.1-consensus-v2
-```
+### Protocol Update — v0.2.1 (Consensus v2)
+
+This release introduced a height-activated consensus hardening.
+
+**Summary**
+
+* Coinbase maturity enforcement was activated at the consensus level.
+* Historical blocks remain valid.
+* Nodes were required to upgrade to continue mining past activation.
+
+**Activation Height**
+
+* Consensus v2 activation height: **1000**
+
+**Release Tag**
+
+* `v0.2.1-consensus-v2`
+
+---
+
+## Current Release
+
+**Version:** `v0.3.0`
+**Consensus:** `v3 (Frozen)`
+
+This release formalizes:
+
+* target-based proof-of-work
+* deterministic difficulty adjustment
+* Median Time Past timestamp enforcement
+* conservative fork selection by accumulated work
+* a frozen L1 consensus surface
 
 ---
 
 ## Features
 
 * proof-of-work mining
-* fork-capable consensus with reorganization
+* fork-capable consensus with automatic reorganization
 * Merkle-root-based block structure
 * persistent blockchain and UTXO storage
 * peer-to-peer networking over raw TCP
@@ -132,7 +176,7 @@ v0.2.1-consensus-v2
 
 ---
 
-## HTTP Interface
+## HTTP Interface (Non-Consensus)
 
 The HTTP interface is provided for inspection and development only.
 
@@ -150,7 +194,7 @@ HTML views are available at:
 * `/tx.html/:txid`
 * `/address.html/:hash`
 
-The HTTP interface does not participate in consensus and may change without notice.
+The HTTP interface does **not** participate in consensus and may change without notice.
 
 ---
 
@@ -186,7 +230,7 @@ These are sufficient to:
 * mine
 * synchronize
 
-Search and indexing are policy layers, not consensus requirements.
+Search and indexing are **policy layers**, not consensus requirements.
 
 ---
 
@@ -203,61 +247,57 @@ This is possible because the node:
 There is no mobile mode.
 A phone running this software is a full node.
 
----
-
-## Requirements
+### Requirements
 
 * Android device (ARM64 recommended)
 * Termux installed from F-Droid
-* approximately 200 MB of free storage
+* ~200 MB of free storage
 * stable internet connection
 
-Termux from Google Play is deprecated.
-Use the F-Droid distribution.
+Termux from Google Play is deprecated. Use the F-Droid distribution.
 
 ---
 
 ## Installation (Termux)
 
 Install Termux:
-
 [https://f-droid.org/packages/com.termux/](https://f-droid.org/packages/com.termux/)
 
 Update packages:
 
-```sh
+```
 pkg update && pkg upgrade
 ```
 
 Install dependencies:
 
-```sh
+```
 pkg install git rust clang
 ```
 
 Verify installation:
 
-```sh
+```
 rustc --version
 cargo --version
 ```
 
 Clone the repository:
 
-```sh
+```
 git clone https://github.com/Satoshi-Nakamoto-ITL/bitcoin-0.2.git
 cd bitcoin-0.2
 ```
 
 Build:
 
-```sh
+```
 cargo build
 ```
 
 Run:
 
-```sh
+```
 cargo run
 ```
 
@@ -276,13 +316,13 @@ Validation behavior is identical to desktop operation.
 
 Build:
 
-```sh
+```
 cargo build
 ```
 
 Run:
 
-```sh
+```
 cargo run
 ```
 
@@ -300,13 +340,13 @@ On startup, a node will:
 
 Node A:
 
-```sh
+```
 cargo run
 ```
 
 Node B (separate directory and port):
 
-```sh
+```
 cargo run
 ```
 
@@ -329,23 +369,19 @@ It intentionally omits:
 * fast synchronization or snapshots
 * production-grade peer discovery
 
-These may be added without modifying consensus rules.
+These may be added **without modifying consensus rules**.
 
 ---
 
 ## Release Status
 
-This release freezes the consensus rules.
+This release **freezes the Layer-1 consensus rules**.
 
 * independent network
 * fixed monetary policy
 * stable proof-of-work and fork-selection rules
 
-Tag:
-
-```
-v0.2.1-consensus-v2
-```
+**Tag:** `v0.3.0-consensus-v3`
 
 ---
 
