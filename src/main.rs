@@ -17,7 +17,7 @@ enum NodeMode {
 }
 
 fn main() {
-    println!("⛓ Bitcoin v0.2 — Revelation Edition");
+    println!("⛓ Bitcoin v0.2.1 — Revelation Edition (Consensus v2)");
 
     // ── Initialize blockchain ───────────────────────────────
     let mut local_chain = Blockchain::new();
@@ -28,8 +28,6 @@ fn main() {
 
     // ── Create DEV WALLET ────────────────────────────────────
     let wallet = Wallet::new_dev();
-
-    // pubkey_hash (Vec<u8>) — NOT a string
     let miner_pubkey_hash = wallet.address();
 
     println!(
@@ -39,26 +37,29 @@ fn main() {
 
     // ── HTTP API ─────────────────────────────────────────────
     let api_chain = Arc::clone(&chain);
-    let _api_mempool = Arc::clone(&mempool);
 
     thread::spawn(move || {
         let rt = Runtime::new().expect("Failed to create Tokio runtime");
         rt.block_on(start_api(api_chain, 8080));
     });
-    // ─────────────────────────────────────────────────────────
+
+    println!("🌐 Explorer running at http://127.0.0.1:8080");
 
     // ── P2P NETWORK ──────────────────────────────────────────
     let p2p = P2PNetwork::new(Arc::clone(&chain));
     println!("🌐 P2P active at {}", p2p.local_addr());
-    // ─────────────────────────────────────────────────────────
 
+    // ── NODE STATE ───────────────────────────────────────────
     let mut mode = NodeMode::Syncing;
     let mut last_height = chain.lock().unwrap().height();
     let mut last_change = Instant::now();
 
+    let mut last_balance: u64 = 0;
+
     println!("🔄 Requesting sync from peers");
     p2p.request_sync();
 
+    // ── MAIN LOOP ────────────────────────────────────────────
     loop {
         match mode {
             NodeMode::Syncing => {
@@ -78,12 +79,12 @@ fn main() {
             }
 
             NodeMode::Normal => {
-                // STEP 1: extract mempool txs
+                // STEP 1: select mempool transactions
                 let mempool_txs = {
                     mempool.lock().unwrap().sorted_for_mining()
                 };
 
-                // STEP 2: mine block (coinbase → pubkey_hash)
+                // STEP 2: mine block
                 let latest_block = {
                     let mut chain = chain.lock().unwrap();
                     chain.mine_block(miner_pubkey_hash.clone(), mempool_txs);
@@ -99,9 +100,17 @@ fn main() {
                         .unwrap()
                         .remove_confirmed(&block.transactions);
 
-                    // Wallet balance via UTXO scan
-                    let balance = wallet.balance(&chain.lock().unwrap().utxos);
-                    println!("💰 Wallet balance: {}", balance);
+                    let chain_guard = chain.lock().unwrap();
+                    let balance = wallet.balance(&chain_guard.utxos);
+                    let height = chain_guard.height();
+
+                    if balance != last_balance {
+                        println!(
+                            "💰 Wallet balance: {} (height {})",
+                            balance, height
+                        );
+                        last_balance = balance;
+                    }
                 }
 
                 sleep(Duration::from_millis(100));
