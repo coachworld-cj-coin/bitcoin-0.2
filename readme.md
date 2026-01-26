@@ -1,19 +1,20 @@
-Bitcoin v0.3.2 — Revelation Edition
+⛓ Bitcoin v0.3.2 — Revelation Edition
 Stable Node, Wallet & Transaction Layer
 
 Consensus v3 — Frozen
 
 Repository:
-https://github.com/Satoshi-Nakamoto-ITL/bitcoin-0.2
+👉 https://github.com/Satoshi-Nakamoto-ITL/bitcoin-0.2
 
 Overview
 
 Bitcoin Revelation v0.3.2 is a stable, non-forking release that activates the full wallet, transaction, mempool, mining, API, and P2P networking layers on top of a frozen Layer-1 Consensus v3.
 
-No consensus rules are modified.
-No chain reset is required.
+✅ No consensus rules are modified
 
-This release is safe for long-running nodes.
+✅ No chain reset is required
+
+✅ Safe for long-running nodes
 
 Release Status
 
@@ -37,7 +38,7 @@ Full P2P block & transaction propagation
 
 REST API block explorer
 
-CLI wallet interface
+Command-line wallet interface
 
 Persistent chain & UTXO storage
 
@@ -51,7 +52,7 @@ What’s NOT Changed
 
 ❌ No protocol fork
 
-Consensus v3 remains frozen.
+➡ Consensus v3 remains frozen
 
 Transaction Layer
 
@@ -61,9 +62,9 @@ UTXO Ownership Model
 
 Each output is locked to a public key hash (PKH).
 
-To spend:
+To spend an output, a transaction must:
 
-Reveal the public key
+Reveal the corresponding public key
 
 Provide a valid ECDSA signature
 
@@ -97,7 +98,7 @@ Inputs are signed locally
 
 Node validates ownership & signatures
 
-Transaction enters mempool
+Transaction enters the mempool
 
 Mempool applies policy rules
 
@@ -117,7 +118,7 @@ Fee-rate based selection
 
 Reorg-safe transaction handling
 
-These rules are local policy, not consensus.
+⚠ These rules are local policy, not consensus.
 
 Command-Line Wallet
 
@@ -136,16 +137,12 @@ Default endpoint:
 http://127.0.0.1:8080
 
 
-Endpoints:
+Available endpoints:
 
 /status
-
 /blocks
-
 /block/height/{n}
-
 /tx/{txid}
-
 /address/{pubkey_hash}
 
 Installation & Running the Node
@@ -189,16 +186,16 @@ source ~/.cargo/env
 git clone https://github.com/Satoshi-Nakamoto-ITL/bitcoin-0.2.git
 cd bitcoin-0.2
 
-3️⃣ Build & run
+3️⃣ Run node
 cargo run
 
 🪟 Windows (PowerShell)
 1️⃣ Install Rust
 
 Download and install:
-https://www.rust-lang.org/tools/install
+👉 https://www.rust-lang.org/tools/install
 
-Restart PowerShell after install.
+Restart PowerShell after installation.
 
 2️⃣ Clone repository
 git clone https://github.com/Satoshi-Nakamoto-ITL/bitcoin-0.2.git
@@ -225,7 +222,7 @@ data/
  └─ wallet.dat
 
 
-Deleting data/ resets the node state.
+⚠ Deleting data/ resets the node state.
 
 Backward Compatibility
 
@@ -245,7 +242,7 @@ Consensus: v3 (frozen)
 
 Scope of This Release
 
-v0.3.0 → Base Layer stabilization
+v0.3.0 → Base layer stabilization
 
 v0.3.1 → Wallet & transaction activation
 
