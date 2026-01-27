@@ -2,12 +2,10 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
-use std::io::{self, Write};
 use std::env;
 use std::net::SocketAddr;
 
 use tokio::runtime::Runtime;
-use rpassword::read_password;
 
 // Import from the LIB crate
 use bitcoin_v0_2_revelation::core::chain::Blockchain;
@@ -24,12 +22,6 @@ enum NodeMode {
     Normal,
 }
 
-fn prompt_secret(msg: &str) -> String {
-    print!("{}", msg);
-    io::stdout().flush().unwrap();
-    read_password().unwrap()
-}
-
 /// Parse: --connect IP:PORT
 fn parse_connect_arg(args: &[String]) -> Option<SocketAddr> {
     args.iter()
@@ -41,21 +33,24 @@ fn parse_connect_arg(args: &[String]) -> Option<SocketAddr> {
 fn main() {
     println!("⛓ Bitcoin v0.3.2 — Revelation Edition (Consensus v3)");
 
+    // ───────── Wallet Password (SERVER SAFE) ─────────
+    let password = match env::var("WALLET_PASSWORD") {
+        Ok(p) => p,
+        Err(_) => {
+            eprintln!("❌ WALLET_PASSWORD environment variable not set");
+            eprintln!("   Example:");
+            eprintln!("   WALLET_PASSWORD=yourpassword cargo run");
+            std::process::exit(1);
+        }
+    };
+
+    // ───────── Wallet & Miner Config ─────────
     let wallet_store = load_wallet_store();
     let miner_config = load_miner_config();
 
     if wallet_store.get_path(&miner_config.coinbase_wallet).is_none() {
         panic!("Configured wallet '{}' not found", miner_config.coinbase_wallet);
     }
-
-    // 🔐 SAFE INPUT (NO ECHO)
-let password = match std::env::var("WALLET_PASSWORD") {
-    Ok(p) => p,
-    Err(_) => {
-        eprintln!("❌ WALLET_PASSWORD env var not set");
-        std::process::exit(1);
-    }
-};
 
     let mut wallet = Wallet::load_or_create(&password);
     let miner_pubkey_hash = wallet.address().expect("wallet locked");
@@ -94,7 +89,7 @@ let password = match std::env::var("WALLET_PASSWORD") {
 
     println!("🌐 Explorer running at http://127.0.0.1:8080");
 
-    // ───────── P2P ─────────
+    // ───────── P2P Network ─────────
     let p2p = P2PNetwork::new(Arc::clone(&chain));
     println!("🔗 P2P listening on {}", p2p.local_addr());
 
@@ -106,6 +101,7 @@ let password = match std::env::var("WALLET_PASSWORD") {
     println!("🔄 Requesting sync from peers");
     p2p.request_sync();
 
+    // ───────── Node Loop ─────────
     let mut mode = NodeMode::Syncing;
     let mut last_height = chain.lock().unwrap().height();
     let mut last_change = Instant::now();
@@ -151,11 +147,15 @@ let password = match std::env::var("WALLET_PASSWORD") {
 
                 if accepted {
                     p2p.broadcast_block(&candidate_block);
-                    mempool.lock().unwrap()
+                    mempool
+                        .lock()
+                        .unwrap()
                         .remove_confirmed(&candidate_block.transactions);
 
                     let c = chain.lock().unwrap();
-                    let balance: u64 = c.utxos.values()
+                    let balance: u64 = c
+                        .utxos
+                        .values()
                         .filter(|u| u.pubkey_hash == miner_pubkey_hash)
                         .map(|u| u.value)
                         .sum();
@@ -172,4 +172,3 @@ let password = match std::env::var("WALLET_PASSWORD") {
         }
     }
 }
-
