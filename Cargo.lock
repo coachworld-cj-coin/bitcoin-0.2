@@ -152,7 +152,7 @@ dependencies = [
 
 [[package]]
 name = "bitcoin_v0_2_revelation"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "aes-gcm",
  "axum",
