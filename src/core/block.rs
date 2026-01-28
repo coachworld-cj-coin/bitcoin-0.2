@@ -1,6 +1,6 @@
 use serde::{Serialize, Deserialize};
 use super::transaction::Transaction;
-use crate::crypto::sha256;
+use crate::consensus::serialize::serialize_block_header;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BlockHeader {
@@ -20,11 +20,10 @@ pub struct Block {
 }
 
 impl Block {
+    /// Block header hash (CONSENSUS)
     pub fn hash_header(&self) -> Vec<u8> {
-        sha256(&sha256(
-            &bincode::serialize(&self.header)
-                .expect("block header serialization"),
-        ))
+        let bytes = serialize_block_header(&self.header);
+        crate::crypto::sha256(&crate::crypto::sha256(&bytes))
     }
 
     pub fn verify_pow(&self) -> bool {

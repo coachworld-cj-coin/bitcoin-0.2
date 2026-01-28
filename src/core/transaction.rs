@@ -1,5 +1,6 @@
 use serde::{Serialize, Deserialize};
 use crate::crypto::sha256;
+use crate::consensus::serialize::serialize_transaction;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TxInput {
@@ -23,15 +24,17 @@ pub struct Transaction {
 }
 
 impl Transaction {
+    /// Transaction ID (CONSENSUS)
     pub fn txid(&self) -> Vec<u8> {
-        sha256(&bincode::serialize(self).unwrap())
+        sha256(&serialize_transaction(self))
     }
 
-    /// Message signed by each input
+    /// Message signed by each input (CONSENSUS)
     pub fn sighash(&self) -> Vec<u8> {
-        sha256(&bincode::serialize(self).unwrap())
+        sha256(&serialize_transaction(self))
     }
 
+    /// Estimated serialized size (POLICY ONLY)
     pub fn serialized_size(&self) -> usize {
         self.inputs.len() * 148 + self.outputs.len() * 34 + 10
     }

@@ -21,9 +21,8 @@ use crate::consensus::{
 
 use crate::{
     block::{Block, BlockHeader},
-    pow::mine,
     utxo::{UTXOSet, UTXO},
-    transaction::{Transaction, TxInput, TxOutput}, // 🔥 extended
+    transaction::{Transaction, TxInput, TxOutput},
     reward::block_reward,
     revelation::revelation_tx,
     merkle::merkle_root,
@@ -32,14 +31,27 @@ use crate::{
 
 #[allow(dead_code)]
 const COINBASE_MATURITY: u64 = 100;
-
 const CONSENSUS_V2_HEIGHT: u64 = 1000;
+
+// ─────────────────────────────────────────────
+// 🔒 HARD-CODED GENESIS (CONSENSUS LAW)
+// ─────────────────────────────────────────────
+
+const GENESIS_TIMESTAMP: i64 = 1730000000;
+const GENESIS_NONCE: u64 = 0; // 🔴 REPLACE
+const GENESIS_TARGET: [u8; 32] = [0xff; 32]; // 🔴 REPLACE if different
+
+const GENESIS_MERKLE: &str =
+    "REPLACE_WITH_GENESIS_MERKLE_ROOT_HEX";
+
+const GENESIS_HASH: &str =
+    "REPLACE_WITH_GENESIS_HASH_HEX";
 
 /// 🔥 NON-CONSENSUS ADDITIONS: mempool
 pub struct Blockchain {
     pub blocks: Vec<Block>,
     pub utxos: UTXOSet,
-    pub mempool: Vec<Transaction>, // NOT part of consensus
+    pub mempool: Vec<Transaction>,
 }
 
 /* ───────────── Data files ───────────── */
@@ -84,7 +96,7 @@ impl Blockchain {
         Self {
             blocks: vec![],
             utxos: HashMap::new(),
-            mempool: Vec::new(), // 🔥 safe
+            mempool: Vec::new(),
         }
     }
 
@@ -92,69 +104,70 @@ impl Blockchain {
         self.blocks.len() as u64
     }
 
-// ─────────────────────────────────────────────
-// 🔥 WALLET LAYER — NON-CONSENSUS
-// ─────────────────────────────────────────────
-pub fn create_transaction(
-    &self,
-    from: Vec<u8>,
-    to: Vec<u8>,
-    amount: u64,
-) -> Result<Transaction, String> {
+    // ─────────────────────────────────────────
+    // 🔥 WALLET LAYER — NON-CONSENSUS
+    // ─────────────────────────────────────────
 
-    let mut accumulated = 0;
-    let mut inputs = Vec::new();
+    pub fn create_transaction(
+        &self,
+        from: Vec<u8>,
+        to: Vec<u8>,
+        amount: u64,
+    ) -> Result<Transaction, String> {
 
-    for (key, utxo) in &self.utxos {
-        if utxo.pubkey_hash == from {
-            let parts: Vec<&str> = key.split(':').collect();
-            let txid = hex::decode(parts[0]).map_err(|_| "Bad txid")?;
-            let index: u32 = parts[1].parse().map_err(|_| "Bad index")?;
+        let mut accumulated = 0;
+        let mut inputs = Vec::new();
 
-            accumulated += utxo.value;
+        for (key, utxo) in &self.utxos {
+            if utxo.pubkey_hash == from {
+                let parts: Vec<&str> = key.split(':').collect();
+                let txid = hex::decode(parts[0]).map_err(|_| "Bad txid")?;
+                let index: u32 = parts[1].parse().map_err(|_| "Bad index")?;
 
-            inputs.push(TxInput {
-                txid,
-                index,
-                pubkey: vec![],
-                signature: vec![],
-                address_index: 0,
-            });
+                accumulated += utxo.value;
 
-            if accumulated >= amount {
-                break;
+                inputs.push(TxInput {
+                    txid,
+                    index,
+                    pubkey: vec![],
+                    signature: vec![],
+                    address_index: 0,
+                });
+
+                if accumulated >= amount {
+                    break;
+                }
             }
         }
-    }
 
-    if accumulated < amount {
-        return Err("Not enough balance".into());
-    }
-
-    let mut outputs = vec![
-        TxOutput {
-            value: amount,
-            pubkey_hash: to,
+        if accumulated < amount {
+            return Err("Not enough balance".into());
         }
-    ];
 
-    if accumulated > amount {
-        outputs.push(TxOutput {
-            value: accumulated - amount,
-            pubkey_hash: from,
-        });
+        let mut outputs = vec![
+            TxOutput {
+                value: amount,
+                pubkey_hash: to,
+            }
+        ];
+
+        if accumulated > amount {
+            outputs.push(TxOutput {
+                value: accumulated - amount,
+                pubkey_hash: from,
+            });
+        }
+
+        Ok(Transaction { inputs, outputs })
     }
 
-    Ok(Transaction { inputs, outputs })
-}
+    pub fn add_to_mempool(&mut self, tx: Transaction) {
+        self.mempool.push(tx);
+    }
 
-pub fn add_to_mempool(&mut self, tx: Transaction) {
-    self.mempool.push(tx);
-}
-
-pub fn drain_mempool(&mut self) -> Vec<Transaction> {
-    std::mem::take(&mut self.mempool)
-}
+    pub fn drain_mempool(&mut self) -> Vec<Transaction> {
+        std::mem::take(&mut self.mempool)
+    }
 
     /* ───────── BLOCK VALIDATION ───────── */
 
@@ -351,23 +364,20 @@ pub fn drain_mempool(&mut self) -> Vec<Transaction> {
 
         if self.blocks.is_empty() {
             let txs = vec![revelation_tx()];
-            let target =
-                calculate_next_target(&self.blocks);
 
-            let mut genesis = Block {
+            let genesis = Block {
                 header: BlockHeader {
                     height: 0,
-                    timestamp: 1730000000,
+                    timestamp: GENESIS_TIMESTAMP,
                     prev_hash: vec![0u8; 32],
-                    nonce: 0,
-                    target,
-                    merkle_root: merkle_root(&txs),
+                    nonce: GENESIS_NONCE,
+                    target: GENESIS_TARGET,
+                    merkle_root: hex::decode(GENESIS_MERKLE).unwrap(),
                 },
                 transactions: txs,
-                hash: vec![],
+                hash: hex::decode(GENESIS_HASH).unwrap(),
             };
 
-            mine(&mut genesis);
             self.blocks.push(genesis);
         }
 
