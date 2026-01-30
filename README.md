@@ -1,131 +1,130 @@
-## ⛓ Bitcoin v0.3.3 — Revelation Edition  
+## ⛓ Bitcoin v0.3.3 — Revelation Edition
 
-Stable Node, Wallet, Mining & Public P2P Network
+Stable Node, Wallet, Mining & Public P2P Network  
+Consensus Specification v1.0 — FINAL / FROZEN
 
-Consensus v3 — FINAL / FROZEN
-
-Repository: 👉 https://github.com/Satoshi-Nakamoto-ITL/bitcoin-0.2
+Repository:
+https://github.com/Satoshi-Nakamoto-ITL/bitcoin-0.2
 
 ---
 
 ## Overview
 
-Bitcoin Revelation v0.3.3 is a stable release that finalizes the wallet, transaction, mempool, mining, API, and P2P networking layers on top of a **frozen Layer-1 Consensus v3**.
+Bitcoin Revelation v0.3.3 is a stable implementation of a Proof-of-Work
+peer-to-peer blockchain with a finalized Layer-1 consensus.
 
-This release hard-codes the Genesis block and permanently freezes all consensus rules.  
-No chain reset is required and all existing coins remain valid.
+All consensus rules are frozen and defined by a single canonical
+specification. The network is permissionless, forkable, and requires
+no central coordination.
 
-A live public seed node is available, allowing anyone to join and mine without manual peer coordination.
-
-✅ No consensus rule changes  
-✅ No chain reset required  
-✅ Safe upgrade from v0.3.2  
-✅ Public P2P network online  
+There is no planned roadmap for consensus changes.
 
 ---
 
-## 🌍 Public Seed Node (Live)
+## Canonical Specification (v1.0)
 
+**The protocol specification is the source of truth.**
 
+All consensus rules, monetary issuance, fork-choice logic,
+and validation requirements are defined here:
 
-bitcoin-0-2.fly.dev:8333
+## src/spec.rs
 
+Any change to the specification constitutes a hard fork.
 
-This node:
-- Accepts inbound P2P connections
-- Shares peer addresses (`getaddr`)
-- Does not mine
-- Does not alter consensus
-- Exists purely for decentralized bootstrapping
+Generated HTML documentation can be produced with:
 
----
-
-## Release Status
-
-**v0.3.3 is a finalization release following v0.3.2.**
-
-This release:
-- Hard-codes the Genesis block
-- Freezes Consensus v3 permanently
-- Marks the protocol layer as final
-
-Any future consensus change requires a version-gated fork.
+cargo doc --no-deps
 
 ---
 
-## What’s Included
+## Consensus Status
 
-- Deterministic HD wallets (BIP39)
-- Encrypted wallet storage (AES-256-GCM + PBKDF2)
-- ECDSA transaction signing & validation
+- Consensus Version: **v3**
+- Specification Version: **v1.0**
+- Status: **FINAL / FROZEN**
+- Genesis: **Hard-coded**
+- Halving schedule: **Fixed**
+- Coinbase maturity: **Enforced**
+- Fork-choice: **Cumulative Proof-of-Work**
+
+No chain reset is required.
+All existing coins remain valid.
+
+---
+
+## Network Status
+
+A public seed node was previously provided for bootstrapping.
+The network is fully peer-to-peer and does not depend on any single host.
+
+Nodes may join, sync, mine, or fork independently.
+
+---
+
+## What This Repository Contains
+
+- Full node implementation
+- Proof-of-Work mining
+- Deterministic UTXO-based transactions
+- Encrypted HD wallet (BIP39)
 - Coinbase maturity enforcement
-- Mempool validation & transaction relay
-- Miner transaction selection from mempool
-- Full P2P block & transaction propagation
-- Public seed node support
-- REST API block explorer
-- Command-line wallet interface
-- Persistent blockchain & UTXO storage
+- Mempool validation
+- P2P networking (transport-agnostic)
+- REST API (non-consensus)
+- Persistent chain and UTXO storage
 
 ---
 
-## Wallet System
+## Mining
 
-- Recovery phrase (BIP39) is shown **once** on creation
-- Phrase is **never stored**
-- Wallet data is encrypted and saved locally
+Mining requires valid Proof-of-Work.
 
-If the recovery phrase is lost, funds are unrecoverable.
+- Rewards are created by coinbase transactions
+- Newly mined coins are locked for a fixed maturity period
+- Spendability is enforced by consensus rules
 
----
-
-## REST API
-
-Default:
-
-
-http://127.0.0.1:8080
-
-
-Endpoints:
-- `/status`
-- `/blocks`
-- `/block/height/{n}`
-- `/tx/{txid}`
-- `/address/{pubkey_hash}`
+Mining may occur with intermittent connectivity.
+Blocks are accepted solely by validity and accumulated work.
 
 ---
 
-## ⛏️ Mining & Full Node
+## Forking
 
-⚠️ Always build from **release tags**, not `main`.
+Forking is permitted.
 
-👉 https://github.com/Satoshi-Nakamoto-ITL/bitcoin-0.2/tags  
-Recommended: `v0.3.3`
+Anyone may:
+- Run a node
+- Mine blocks
+- Fork the code
+- Compete with alternative rule sets
 
----
-
-## Backward Compatibility
-
-- Compatible with v0.3.0+
-- No fork
-- No replay risk
+Consensus is voluntary and local.
 
 ---
 
-## Release Identifier
+## Release Information
 
-- Tag: `v0.3.3`
 - Client: Bitcoin Revelation v0.3.3
-- Consensus: v3 (FINAL / FROZEN)
+- Tag: v0.3.3
+- Consensus: v3 (FINAL)
+- Specification: v1.0 (FROZEN)
+
+Build from release tags only:
+https://github.com/Satoshi-Nakamoto-ITL/bitcoin-0.2/tags
 
 ---
 
 ## Disclaimer
 
-This software is provided as-is for research and independent node operation.
+This software is provided as-is for research and independent operation.
 
-There is no warranty, no central authority, and no permission system.
+There is:
+- No warranty
+- No central authority
+- No permission system
+- No guarantee of value
 
-⛓ Satoshi-Nakamoto-ITL
+Time is the final judge.
 
+## ⛓ Satoshi-Nakamoto
