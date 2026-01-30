@@ -1,34 +1,55 @@
 # Consensus Rules
 
-This document defines the rules used by nodes to determine block and chain validity.
+This document defines the rules used by nodes to determine
+block, transaction, and chain validity.
 
-Consensus is achieved through independent verification.  
+Consensus is achieved through independent verification.
 Nodes do not trust peers.
+All rules are deterministic.
 
 ---
 
 ## Block Validity
 
-A block is valid if:
+A block is valid if all of the following conditions are met:
 
-- Previous block hash matches
-- Height increments by exactly one
-- At least one transaction exists
-- Merkle root matches transactions
-- Proof-of-work satisfies target
-- Difficulty matches expected value
+- Previous block hash matches the parent block
+- Block height increments by exactly one
+- At least one transaction exists (coinbase)
+- Merkle root matches the included transactions
+- Proof-of-Work hash satisfies the target
+- Difficulty target matches the expected value
+- Block size does not exceed the maximum limit
 
-Invalid blocks are rejected.
+Invalid blocks are rejected without exception.
 
 ---
 
 ## Proof-of-Work
 
-Proof-of-work is performed by hashing the block header with a changing nonce.
+Proof-of-Work is performed by hashing the serialized block header
+using double SHA-256 while varying the nonce.
 
-A block is valid only if its hash satisfies the difficulty target.
+A block is valid only if:
 
-Difficulty adjustment is deterministic.
+```
+
+hash(block_header) <= target
+
+```
+
+Difficulty adjustment is deterministic and computed from prior blocks.
+
+---
+
+## Timestamp Rules (Consensus)
+
+Block timestamps must satisfy:
+
+- Timestamp > Median Time Past of recent blocks
+- Timestamp <= current network time + maximum future drift
+
+Blocks violating timestamp rules are invalid.
 
 ---
 
@@ -37,6 +58,7 @@ Difficulty adjustment is deterministic.
 The Genesis block is hard-coded.
 
 All nodes must agree on:
+
 - Timestamp
 - Target
 - Merkle root
@@ -46,11 +68,50 @@ Chains that do not match the Genesis definition are invalid.
 
 ---
 
+## Coinbase Transaction
+
+Each block may contain exactly one coinbase transaction.
+
+Coinbase transactions:
+
+- Have no inputs
+- Create new coins
+- Must not exceed the block reward for the given height
+
+Issuing more coins than allowed is invalid.
+
+---
+
+## Monetary Issuance
+
+Block rewards follow a deterministic halving schedule.
+
+The reward is a function of block height.
+After sufficient halvings, the reward becomes zero.
+
+Total supply is bounded.
+
+---
+
 ## Coinbase Maturity
 
 Coinbase outputs are locked for a fixed number of blocks.
 
-Spending before maturity is invalid.
+Spending a coinbase output before maturity is invalid.
+
+---
+
+## Transaction Validity
+
+A transaction is valid if:
+
+- All inputs reference existing unspent outputs
+- No UTXO is spent more than once
+- Signatures are valid
+- Input value >= output value
+- Coinbase maturity rules are respected
+
+Invalid transactions invalidate the block.
 
 ---
 
@@ -58,17 +119,24 @@ Spending before maturity is invalid.
 
 Nodes select the valid chain with the greatest accumulated proof-of-work.
 
+Chain selection is objective and requires no coordination.
+
 ---
 
 ## Finality
 
 Reorganizations may occur but become less likely as depth increases.
 
+There is no explicit finality mechanism.
+
 ---
 
 ## Status
 
-Consensus Version: v3  
-Status: FINAL / FROZEN
+- Consensus Version: v3
+- Specification Version: v1.0
+- Status: FINAL / FROZEN
 
-Any change requires a version-gated fork.
+Any change requires a version-gated hard fork.
+```
+
