@@ -28,6 +28,9 @@ fn clamp_target_big(target: BigUint) -> BigUint {
 ///
 /// Formula:
 /// new_target = old_target * actual_time / expected_time
+///
+/// ⚠️ CONSENSUS CRITICAL:
+/// actual_time is clamped to prevent time-warp attacks.
 pub fn calculate_next_target(chain: &[Block]) -> [u8; 32] {
     // Genesis / empty chain
     if chain.is_empty() {
@@ -50,7 +53,7 @@ pub fn calculate_next_target(chain: &[Block]) -> [u8; 32] {
     let first =
         &chain[height - DIFFICULTY_ADJUSTMENT_INTERVAL - 1];
 
-    let actual_time =
+    let mut actual_time =
         last.header.timestamp - first.header.timestamp;
 
     let expected_time =
@@ -61,13 +64,31 @@ pub fn calculate_next_target(chain: &[Block]) -> [u8; 32] {
         return last.header.target;
     }
 
+    // ─────────────────────────────────────────
+    // 🔒 CONSENSUS SAFETY CLAMP (Bitcoin-style)
+    //
+    // Prevents timestamp manipulation that could:
+    // - Collapse difficulty
+    // - Freeze difficulty
+    // - Enable cheap long-range attacks
+    // ─────────────────────────────────────────
+    let min_time = expected_time / 4;
+    let max_time = expected_time * 4;
+
+    if actual_time < min_time {
+        actual_time = min_time;
+    } else if actual_time > max_time {
+        actual_time = max_time;
+    }
+
     // Convert target to BigUint
     let old_target =
         BigUint::from_bytes_be(&last.header.target);
 
     // Scale target
-    let scaled = (&old_target * BigUint::from(actual_time as u64))
-        / BigUint::from(expected_time as u64);
+    let scaled =
+        (&old_target * BigUint::from(actual_time as u64))
+            / BigUint::from(expected_time as u64);
 
     let new_target = clamp_target_big(scaled);
 

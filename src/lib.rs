@@ -7,10 +7,10 @@ pub mod wallet;
 pub mod wallet_store;
 pub mod crypto;
 pub mod consensus;
-pub mod node;        
-pub mod interface;   
-pub mod spec;
+pub mod node;        // ✅ REQUIRED
+pub mod interface;   // ✅ REQUIRED
 
+// New module tree
 pub mod core;
 
 pub use core::block;

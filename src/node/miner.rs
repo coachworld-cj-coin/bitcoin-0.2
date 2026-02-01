@@ -12,11 +12,8 @@ use crate::{
     policy::{MAX_BLOCK_TXS, MAX_BLOCK_TX_BYTES},
 };
 
-/// Build and mine a block candidate
-///
-/// ⚠ POLICY ONLY
-/// ⚠ NOT CONSENSUS
-/// ⚠ MUST NEVER BE USED FOR VALIDATION
+const MIN_FEE_PER_BYTE: i64 = 1; // POLICY ONLY
+
 pub fn mine_block(
     prev_block: &Block,
     utxos: &UTXOSet,
@@ -26,7 +23,6 @@ pub fn mine_block(
 ) -> Block {
     let height = prev_block.header.height + 1;
 
-    // ── Coinbase ───────────────────────────────
     let coinbase = Transaction {
         inputs: vec![],
         outputs: vec![TxOutput {
@@ -38,7 +34,6 @@ pub fn mine_block(
     let mut selected = vec![coinbase];
     let mut total_bytes = selected[0].serialized_size();
 
-    // ── Transaction selection (policy only) ────
     for tx in mempool_txs {
         if selected.len() >= MAX_BLOCK_TXS {
             break;
@@ -49,11 +44,40 @@ pub fn mine_block(
             break;
         }
 
-        //  pass NEXT BLOCK height
-        if validate_transaction(&tx, utxos, height) {
-            total_bytes += size;
-            selected.push(tx);
+        if !validate_transaction(&tx, utxos, height) {
+            continue;
         }
+
+        let mut input = 0i64;
+        let mut output = 0i64;
+
+        for i in &tx.inputs {
+            let key = format!(
+                "{}:{}",
+                hex::encode(&i.txid),
+                i.index
+            );
+            if let Some(u) = utxos.get(&key) {
+                input += u.value as i64;
+            }
+        }
+
+        for o in &tx.outputs {
+            output += o.value as i64;
+        }
+
+        let fee = input - output;
+        if fee <= 0 {
+            continue;
+        }
+
+        let fee_rate = fee / size as i64;
+        if fee_rate < MIN_FEE_PER_BYTE {
+            continue;
+        }
+
+        total_bytes += size;
+        selected.push(tx);
     }
 
     let target = calculate_next_target(chain);
